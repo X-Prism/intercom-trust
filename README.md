@@ -6,14 +6,14 @@ A **P2P reputation system** for the [Trac Network](https://trac.network/) Interc
 
 ## Features
 
-- **Rate peers** \u2014 1-5 star ratings with optional comments (280 chars)
-- **Trust scores** \u2014 pre-computed averages, queryable by address
-- **Reviews** \u2014 paginated review list with dispute responses
-- **Leaderboard** \u2014 top peers sorted by reputation
-- **Profiles** \u2014 register display names
-- **Agent-ready** \u2014 all operations available via SC-Bridge WebSocket
-- **Self-rating prevention** \u2014 enforced at the contract level
-- **One rating per pair** \u2014 updates overwrite cleanly
+- **Rate peers** — 1-5 star ratings with optional comments (280 chars)
+- **Trust scores** — pre-computed averages, queryable by address
+- **Reviews** — paginated review list with dispute responses
+- **Leaderboard** — top peers sorted by reputation
+- **Profiles** — register display names
+- **Agent-ready** — all operations available via SC-Bridge WebSocket
+- **Self-rating prevention** — enforced at the contract level
+- **One rating per pair** — updates overwrite cleanly
 
 ## Quick Start
 
@@ -72,9 +72,9 @@ Contract output is prefixed with `TRUST_RESULT:` for reliable parsing.
 
 ## Built On
 
-- [Trac-Systems/intercom](https://github.com/Trac-Systems/intercom) \u2014 upstream Intercom stack
-- [trac-peer](https://github.com/Trac-Systems/trac-peer) \u2014 P2P runtime
-- [Autobase/Hyperbee](https://docs.holepunch.to/) \u2014 replicated state
+- [Trac-Systems/intercom](https://github.com/Trac-Systems/intercom) — upstream Intercom stack
+- [trac-peer](https://github.com/Trac-Systems/trac-peer) — P2P runtime
+- [Autobase/Hyperbee](https://docs.holepunch.to/) — replicated state
 
 ## License
 
