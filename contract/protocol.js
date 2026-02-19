@@ -7,7 +7,7 @@ class TrustProtocol extends Protocol{
 
     async extendApi(){
         this.api.getTrustInfo = function(){
-            return 'Intercom Trust \u2014 P2P Reputation System v0.1.0';
+            return 'Intercom Trust — P2P Reputation System v0.1.0';
         }
     }
 
