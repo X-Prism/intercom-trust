@@ -1,94 +1,90 @@
 import {Contract} from 'trac-peer'
 
-class SampleContract extends Contract {
-    /**
-     * Extending from Contract inherits its capabilities and allows you to define your own contract.
-     * The contract supports the corresponding protocol. Both files come in pairs.
-     *
-     * Instances of this class run in contract context. The constructor is only called once on Peer
-     * instantiation.
-     *
-     * Please avoid using the following in your contract functions:
-     *
-     * No try-catch
-     * No throws
-     * No random values
-     * No http / api calls
-     * No super complex, costly calculations
-     * No massive storage of data.
-     * Never, ever modify "this.op" or "this.value", only read from it and use safeClone to modify.
-     * ... basically nothing that can lead to inconsistencies akin to Blockchain smart contracts.
-     *
-     * Running a contract on Trac gives you a lot of freedom, but it comes with additional responsibility.
-     * Make sure to benchmark your contract performance before release.
-     *
-     * If you need to inject data from "outside", you can utilize the Feature class and create your own
-     * oracles. Instances of Feature can be injected into the main Peer instance and enrich your contract.
-     *
-     * In the current version (Release 1), there is no inter-contract communication yet.
-     * This means it's not suitable yet for token standards.
-     * However, it's perfectly equipped for interoperability or standalone tasks.
-     *
-     * this.protocol: the peer's instance of the protocol managing contract concerns outside of its execution.
-     * this.options: the option stack passed from Peer instance
-     *
-     * @param protocol
-     * @param options
-     */
+class TrustContract extends Contract {
     constructor(protocol, options = {}) {
-        // calling super and passing all parameters is required.
         super(protocol, options);
 
-        // simple function registration.
-        // since this function does not expect value payload, no need to sanitize.
-        // note that the function must match the type as set in Protocol.mapTxCommand()
-        this.addFunction('storeSomething');
+        // --- Write operations (schema-validated) ---
 
-        // now we register the function with a schema to prevent malicious inputs.
-        // the contract uses the schema generator "fastest-validator" and can be found on npmjs.org.
-        //
-        // Since this is the "value" as of Protocol.mapTxCommand(), we must take it full into account.
-        // $$strict : true tells the validator for the object structure to be precise after "value".
-        //
-        // note that the function must match the type as set in Protocol.mapTxCommand()
-        this.addSchema('submitSomething', {
-            value : {
-                $$strict : true,
+        this.addSchema('submitRating', {
+            value: {
+                $$strict: true,
                 $$type: "object",
-                op : { type : "string", min : 1, max: 128 },
-                some_key : { type : "string", min : 1, max: 128 }
+                op: { type: "string", min: 1, max: 128 },
+                ratee: { type: "string", min: 1, max: 128 },
+                score: { type: "number", integer: true, min: 1, max: 5 },
+                comment: { type: "string", max: 280, optional: true, default: "" }
             }
         });
 
-        // in preparation to add an external Feature (aka oracle), we add a loose schema to make sure
-        // the Feature key is given properly. it's not required, but showcases that even these can be
-        // sanitized.
-        this.addSchema('feature_entry', {
-            key : { type : "string", min : 1, max: 256 },
-            value : { type : "any" }
-        });
-
-        // read helpers (no state writes)
-        this.addFunction('readSnapshot');
-        this.addFunction('readChatLast');
-        this.addFunction('readTimer');
-        this.addSchema('readKey', {
-            value : {
-                $$strict : true,
+        this.addSchema('submitResponse', {
+            value: {
+                $$strict: true,
                 $$type: "object",
-                op : { type : "string", min : 1, max: 128 },
-                key : { type : "string", min : 1, max: 256 }
+                op: { type: "string", min: 1, max: 128 },
+                rater_address: { type: "string", min: 1, max: 128 },
+                comment: { type: "string", min: 1, max: 280 }
             }
         });
 
-        // now we are registering the timer feature itself (see /features/time/ in package).
-        // note the naming convention for the feature name <feature-name>_feature.
-        // the feature name is given in app setup, when passing the feature classes.
+        this.addSchema('registerProfile', {
+            value: {
+                $$strict: true,
+                $$type: "object",
+                op: { type: "string", min: 1, max: 128 },
+                alias: { type: "string", min: 1, max: 64 }
+            }
+        });
+
+        // --- Read operations (schema-validated) ---
+
+        this.addSchema('getRatingSummary', {
+            value: {
+                $$strict: true,
+                $$type: "object",
+                op: { type: "string", min: 1, max: 128 },
+                address: { type: "string", min: 1, max: 128 }
+            }
+        });
+
+        this.addSchema('getReviews', {
+            value: {
+                $$strict: true,
+                $$type: "object",
+                op: { type: "string", min: 1, max: 128 },
+                address: { type: "string", min: 1, max: 128 },
+                limit: { type: "number", integer: true, min: 1, max: 100, optional: true, default: 20 },
+                offset: { type: "number", integer: true, min: 0, optional: true, default: 0 }
+            }
+        });
+
+        this.addSchema('getProfile', {
+            value: {
+                $$strict: true,
+                $$type: "object",
+                op: { type: "string", min: 1, max: 128 },
+                address: { type: "string", min: 1, max: 128 }
+            }
+        });
+
+        this.addSchema('getLeaderboard', {
+            value: {
+                $$strict: true,
+                $$type: "object",
+                op: { type: "string", min: 1, max: 128 },
+                limit: { type: "number", integer: true, min: 1, max: 50, optional: true, default: 10 }
+            }
+        });
+
+        // --- Timer feature (same pattern as upstream) ---
+
         const _this = this;
 
-        // this feature registers incoming data from the Feature and if the right key is given,
-        // stores it into the smart contract storage.
-        // the stored data can then be further used in regular contract functions.
+        this.addSchema('feature_entry', {
+            key: { type: "string", min: 1, max: 256 },
+            value: { type: "any" }
+        });
+
         this.addFeature('timer_feature', async function(){
             if(false === _this.check.validateSchema('feature_entry', _this.op)) return;
             if(_this.op.key === 'currentTime') {
@@ -96,145 +92,224 @@ class SampleContract extends Contract {
                 await _this.put(_this.op.key, _this.op.value);
             }
         });
+    }
 
-        // last but not least, you may intercept messages from the built-in
-        // chat system, and perform actions similar to features to enrich your
-        // contract. check the _this.op value after you enabled the chat system
-        // and posted a few messages.
-        this.messageHandler(async function(){
-            if(_this.op?.type === 'msg' && typeof _this.op.msg === 'string'){
-                const currentTime = await _this.get('currentTime');
-                await _this.put('chat_last', {
-                    msg: _this.op.msg,
-                    address: _this.op.address ?? null,
-                    at: currentTime ?? null
+    // ==================== WRITE OPERATIONS ====================
+
+    async submitRating() {
+        const rateeAddr = this.value.ratee;
+        const raterAddr = this.address;
+        const score = this.value.score;
+
+        // Validation
+        this.assert(typeof rateeAddr === 'string' && rateeAddr.length > 0, new Error('Invalid ratee address'));
+        this.assert(raterAddr !== rateeAddr, new Error('Cannot rate yourself'));
+        this.assert(score >= 1 && score <= 5, new Error('Score must be 1-5'));
+
+        // Reads
+        const existingRating = await this.get('rating:' + rateeAddr + ':' + raterAddr);
+        const summary = await this.get('summary:' + rateeAddr) || {
+            totalScore: 0, count: 0, avgScore: 0, lastRated: null, raters: []
+        };
+        const peersList = await this.get('peers_list') || [];
+        const currentTime = await this.get('currentTime');
+
+        // Compute updated summary
+        const cloned = this.protocol.safeClone(summary);
+
+        if (existingRating) {
+            cloned.totalScore = cloned.totalScore - existingRating.score + score;
+        } else {
+            cloned.totalScore += score;
+            cloned.count += 1;
+            if (!cloned.raters.includes(raterAddr)) {
+                cloned.raters.push(raterAddr);
+            }
+        }
+        cloned.avgScore = cloned.count > 0 ? cloned.totalScore / cloned.count : 0;
+        cloned.lastRated = currentTime ?? null;
+
+        // Puts (all at end)
+        await this.put('rating:' + rateeAddr + ':' + raterAddr, {
+            score,
+            comment: this.value.comment || '',
+            timestamp: currentTime ?? null
+        });
+        await this.put('summary:' + rateeAddr, cloned);
+        if (!peersList.includes(rateeAddr)) {
+            await this.put('peers_list', [...peersList, rateeAddr]);
+        }
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            op: 'submitRating',
+            rater: raterAddr,
+            ratee: rateeAddr,
+            score,
+            updated: !!existingRating
+        }));
+    }
+
+    async submitResponse() {
+        const rateeAddr = this.address;
+        const raterAddr = this.value.rater_address;
+
+        this.assert(typeof raterAddr === 'string' && raterAddr.length > 0, new Error('Invalid rater address'));
+
+        const rating = await this.get('rating:' + rateeAddr + ':' + raterAddr);
+        this.assert(rating !== null, new Error('No rating found to respond to'));
+
+        const currentTime = await this.get('currentTime');
+
+        await this.put('response:' + rateeAddr + ':' + raterAddr, {
+            comment: this.value.comment,
+            timestamp: currentTime ?? null,
+            ratingTimestamp: rating.timestamp ?? null
+        });
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            op: 'submitResponse',
+            ratee: rateeAddr,
+            rater: raterAddr
+        }));
+    }
+
+    async registerProfile() {
+        const currentTime = await this.get('currentTime');
+
+        await this.put('profile:' + this.address, {
+            alias: this.value.alias,
+            registered: currentTime ?? null
+        });
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            op: 'registerProfile',
+            address: this.address,
+            alias: this.value.alias
+        }));
+    }
+
+    // ==================== READ OPERATIONS ====================
+
+    async getRatingSummary() {
+        const addr = this.value.address;
+        const summary = await this.get('summary:' + addr);
+
+        if (!summary) {
+            console.log('TRUST_RESULT:' + JSON.stringify({
+                address: addr,
+                found: false
+            }));
+            return;
+        }
+
+        const profile = await this.get('profile:' + addr);
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            address: addr,
+            alias: profile?.alias || null,
+            totalScore: summary.totalScore,
+            count: summary.count,
+            avgScore: Math.round(summary.avgScore * 100) / 100,
+            lastRated: summary.lastRated
+        }));
+    }
+
+    async getReviews() {
+        const addr = this.value.address;
+        const limit = Math.min(this.value.limit || 20, 100);
+        const offset = this.value.offset || 0;
+
+        const summary = await this.get('summary:' + addr);
+        if (!summary || !summary.raters || summary.raters.length === 0) {
+            console.log('TRUST_RESULT:' + JSON.stringify({
+                address: addr,
+                reviews: [],
+                total: 0
+            }));
+            return;
+        }
+
+        const raters = summary.raters;
+        const total = raters.length;
+        const slice = raters.slice(offset, offset + limit);
+
+        const reviews = [];
+        for (const raterAddr of slice) {
+            const rating = await this.get('rating:' + addr + ':' + raterAddr);
+            if (rating) {
+                const response = await this.get('response:' + addr + ':' + raterAddr);
+                const raterProfile = await this.get('profile:' + raterAddr);
+                reviews.push({
+                    rater: raterAddr,
+                    raterAlias: raterProfile?.alias || null,
+                    score: rating.score,
+                    comment: rating.comment,
+                    timestamp: rating.timestamp,
+                    response: response ? response.comment : null
                 });
             }
-            console.log('message triggered contract', _this.op);
-        });
-    }
-
-    /**
-     * A simple contract function without values (=no parameters).
-     *
-     * Contract functions must be registered through either "this.addFunction" or "this.addSchema"
-     * or it won't execute upon transactions. "this.addFunction" does not sanitize values, so it should be handled with
-     * care or be used when no payload is to be expected.
-     *
-     * Schema is recommended to sanitize incoming data from the transaction payload.
-     * The type of payload data depends on your protocol.
-     *
-     * This particular function does not expect any payload, so it's fine to be just registered using "this.addFunction".
-     *
-     * However, as you can see below, what it does is checking if an entry for key "something" exists already.
-     * With the very first tx executing it, it will return "null" (default value of this.get if no value found).
-     * From the 2nd tx onwards, it will print the previously stored value "there is something".
-     *
-     * It is recommended to check for null existence before using put to avoid duplicate content.
-     *
-     * As a rule of thumb, all "this.put()" should go at the end of function execution to avoid code security issues.
-     *
-     * Putting data is atomic, should a Peer with a contract interrupt, the put won't be executed.
-     */
-    async storeSomething(){
-        const something = await this.get('something');
-
-        console.log('is there already something?', something);
-
-        if(null === something) {
-            await this.put('something', 'there is something');
-        }
-    }
-
-    /**
-     * Now we are using the schema-validated function defined in the constructor.
-     *
-     * The function also showcases some of the handy features like safe functions
-     * to prevent throws and safe bigint/decimal conversion.
-     */
-    async submitSomething(){
-        // the value of some_key shouldn't be empty, let's check that
-        if(this.value.some_key === ''){
-            return new Error('Cannot be empty');
-            // alternatively false for generic errors:
-            // return false;
         }
 
-        // of course the same works with assert (always use this.assert)
-        this.assert(this.value.some_key !== '', new Error('Cannot be empty'));
-
-        // btw, please use safeBigInt provided by the contract protocol's superclass
-        // to calculate big integers:
-        const bigint = this.protocol.safeBigInt("1000000000000000000");
-
-        // making sure it didn't fail
-        this.assert(bigint !== null);
-
-        // you can also convert a bigint string into its decimal representation (as string)
-        const decimal = this.protocol.fromBigIntString(bigint.toString(), 18);
-
-        // and back into a bigint string
-        const bigint_string = this.protocol.toBigIntString(decimal, 18);
-
-        // let's clone the value
-        const cloned = this.protocol.safeClone(this.value);
-
-        // we want to pass the time from the timer feature.
-        // since mmodifications of this.value is not allowed, add this to the clone instead for storing:
-        cloned['timestamp'] = await this.get('currentTime');
-
-        // making sure it didn't fail (be aware of false-positives if null is passed to safeClone)
-        this.assert(cloned !== null);
-
-        // and now let's stringify the cloned value
-        const stringified = this.protocol.safeJsonStringify(cloned);
-
-        // and, you guessed it, best is to assert against null once more
-        this.assert(stringified !== null);
-
-        // and guess we are parsing it back
-        const parsed = this.protocol.safeJsonParse(stringified);
-
-        // parsing the json is a bit different: instead of null, we check against undefined:
-        this.assert(parsed !== undefined);
-
-        // finally we are storing what address submitted the tx and what the value was
-        await this.put('submitted_by/'+this.address, parsed.some_key);
-
-        // printing into the terminal works, too of course:
-        console.log('submitted by', this.address, parsed);
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            address: addr,
+            reviews,
+            total,
+            offset,
+            limit
+        }));
     }
 
-    async readSnapshot(){
-        const something = await this.get('something');
-        const currentTime = await this.get('currentTime');
-        const msgl = await this.get('msgl');
-        const msg0 = await this.get('msg/0');
-        const msg1 = await this.get('msg/1');
-        console.log('snapshot', {
-            something,
-            currentTime,
-            msgl: msgl ?? 0,
-            msg0,
-            msg1
-        });
+    async getProfile() {
+        const addr = this.value.address;
+        const profile = await this.get('profile:' + addr);
+        const summary = await this.get('summary:' + addr);
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            address: addr,
+            alias: profile?.alias || null,
+            registered: profile?.registered || null,
+            avgScore: summary ? Math.round(summary.avgScore * 100) / 100 : null,
+            ratingCount: summary?.count || 0
+        }));
     }
 
-    async readKey(){
-        const key = this.value?.key;
-        const value = key ? await this.get(key) : null;
-        console.log(`readKey ${key}:`, value);
-    }
+    async getLeaderboard() {
+        const limit = Math.min(this.value.limit || 10, 50);
 
-    async readChatLast(){
-        const last = await this.get('chat_last');
-        console.log('chat_last:', last);
-    }
+        const peersList = await this.get('peers_list') || [];
+        if (peersList.length === 0) {
+            console.log('TRUST_RESULT:' + JSON.stringify({
+                leaderboard: [],
+                total: 0
+            }));
+            return;
+        }
 
-    async readTimer(){
-        const currentTime = await this.get('currentTime');
-        console.log('currentTime:', currentTime);
+        const entries = [];
+        for (const addr of peersList) {
+            const summary = await this.get('summary:' + addr);
+            if (summary && summary.count > 0) {
+                entries.push({
+                    address: addr,
+                    avgScore: Math.round(summary.avgScore * 100) / 100,
+                    count: summary.count
+                });
+            }
+        }
+
+        entries.sort((a, b) => b.avgScore - a.avgScore || b.count - a.count);
+
+        const top = entries.slice(0, limit);
+        for (const entry of top) {
+            const profile = await this.get('profile:' + entry.address);
+            entry.alias = profile?.alias || null;
+        }
+
+        console.log('TRUST_RESULT:' + JSON.stringify({
+            leaderboard: top,
+            total: entries.length
+        }));
     }
 }
 
-export default SampleContract;
+export default TrustContract;

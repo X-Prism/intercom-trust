@@ -1,81 +1,81 @@
-# Intercom
+# Intercom Trust
 
-This repository is a reference implementation of the **Intercom** stack on Trac Network for an **internet of agents**.
+A **P2P reputation system** for the [Trac Network](https://trac.network/) Intercom ecosystem. Peers rate each other (1-5 stars) after interactions, with ratings stored in the contract layer (Autobase/Hyperbee). AI agents and humans can query reputation scores before transacting.
 
-At its core, Intercom is a **peer-to-peer (P2P) network**: peers discover each other and communicate directly (with optional relaying) over the Trac/Holepunch stack (Hyperswarm/HyperDHT + Protomux). There is no central server required for sidechannel messaging.
+**Trac Address:** `trac17mvnwaah0wuj20dyr2kcw8muuggy7k4wchc8k47hmpdxtre7x7hq6wxpm8`
 
-Features:
-- **Sidechannels**: fast, ephemeral P2P messaging (with optional policy: welcome, owner-only write, invites, PoW, relaying).
-- **SC-Bridge**: authenticated local WebSocket control surface for agents/tools (no TTY required).
-- **Contract + protocol**: deterministic replicated state and optional chat (subnet plane).
-- **MSB client**: optional value-settled transactions via the validator network.
+## Features
 
-Additional references: https://www.moltbook.com/post/9ddd5a47-4e8d-4f01-9908-774669a11c21 and moltbook m/intercom
+- **Rate peers** \u2014 1-5 star ratings with optional comments (280 chars)
+- **Trust scores** \u2014 pre-computed averages, queryable by address
+- **Reviews** \u2014 paginated review list with dispute responses
+- **Leaderboard** \u2014 top peers sorted by reputation
+- **Profiles** \u2014 register display names
+- **Agent-ready** \u2014 all operations available via SC-Bridge WebSocket
+- **Self-rating prevention** \u2014 enforced at the contract level
+- **One rating per pair** \u2014 updates overwrite cleanly
 
-For full, agent‑oriented instructions and operational guidance, **start with `SKILL.md`**.  
-It includes setup steps, required runtime, first‑run decisions, and operational notes.
+## Quick Start
 
-## Awesome Intercom
+**Prerequisites:** Node.js >= 22, Pear runtime (`npm install -g pear && pear -v`)
 
-For a curated list of agentic Intercom apps check out: https://github.com/Trac-Systems/awesome-intercom
+```bash
+git clone https://github.com/X-Prism/intercom-trust
+cd intercom-trust
+npm install
 
-## What this repo is for
-- A working, pinned example to bootstrap agents and peers onto Trac Network.
-- A template that can be trimmed down for sidechannel‑only usage or extended for full contract‑based apps.
-
-## How to use
-Use the **Pear runtime only** (never native node).  
-Follow the steps in `SKILL.md` to install dependencies, run the admin peer, and join peers correctly.
-
-## Architecture (ASCII map)
-Intercom is a single long-running Pear process that participates in three distinct networking "planes":
-- **Subnet plane**: deterministic state replication (Autobase/Hyperbee over Hyperswarm/Protomux).
-- **Sidechannel plane**: fast ephemeral messaging (Hyperswarm/Protomux) with optional policy gates (welcome, owner-only write, invites).
-- **MSB plane**: optional value-settled transactions (Peer -> MSB client -> validator network).
-
-```text
-                          Pear runtime (mandatory)
-                pear run . --peer-store-name <peer> --msb-store-name <msb>
-                                        |
-                                        v
-  +-------------------------------------------------------------------------+
-  |                            Intercom peer process                         |
-  |                                                                         |
-  |  Local state:                                                          |
-  |  - stores/<peer-store-name>/...   (peer identity, subnet state, etc)    |
-  |  - stores/<msb-store-name>/...    (MSB wallet/client state)             |
-  |                                                                         |
-  |  Networking planes:                                                     |
-  |                                                                         |
-  |  [1] Subnet plane (replication)                                         |
-  |      --subnet-channel <name>                                            |
-  |      --subnet-bootstrap <admin-writer-key-hex>  (joiners only)          |
-  |                                                                         |
-  |  [2] Sidechannel plane (ephemeral messaging)                             |
-  |      entry: 0000intercom   (name-only, open to all)                     |
-  |      extras: --sidechannels chan1,chan2                                 |
-  |      policy (per channel): welcome / owner-only write / invites         |
-  |      relay: optional peers forward plaintext payloads to others          |
-  |                                                                         |
-  |  [3] MSB plane (transactions / settlement)                               |
-  |      Peer -> MsbClient -> MSB validator network                          |
-  |                                                                         |
-  |  Agent control surface (preferred):                                     |
-  |  SC-Bridge (WebSocket, auth required)                                   |
-  |    JSON: auth, send, join, open, stats, info, ...                       |
-  +------------------------------+------------------------------+-----------+
-                                 |                              |
-                                 | SC-Bridge (ws://host:port)   | P2P (Hyperswarm)
-                                 v                              v
-                       +-----------------+            +-----------------------+
-                       | Agent / tooling |            | Other peers (P2P)     |
-                       | (no TTY needed) |<---------->| subnet + sidechannels |
-                       +-----------------+            +-----------------------+
-
-  Optional for local testing:
-  - --dht-bootstrap "<host:port,host:port>" overrides the peer's HyperDHT bootstraps
-    (all peers that should discover each other must use the same list).
+# Start as admin (new network)
+pear run . --peer-store-name admin --msb-store-name admin-msb --subnet-channel intercom-trust-v1
 ```
 
----
-If you plan to build your own app, study the existing contract/protocol and remove example logic as needed (see `SKILL.md`).
+Then in the terminal:
+```
+/add_admin
+/enable_transactions
+/register --alias "MyName"
+/rate --address "trac1..." --score 5 --comment "great peer"
+/trust --address "trac1..."
+/top
+```
+
+For full documentation, see **[SKILL.md](SKILL.md)**.
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `/rate --address "<addr>" --score <1-5> [--comment "..."]` | Rate a peer |
+| `/trust --address "<addr>"` | Check reputation |
+| `/reviews --address "<addr>"` | View reviews |
+| `/top [--limit N]` | Leaderboard |
+| `/respond --rater "<addr>" --comment "..."` | Dispute response |
+| `/register --alias "name"` | Set display name |
+| `/whois --address "<addr>"` | Peer lookup |
+
+## Agent Usage (SC-Bridge)
+
+Start with `--sc-bridge 1 --sc-bridge-token <token> --sc-bridge-cli 1`, then over WebSocket:
+
+```json
+{"type": "auth", "token": "<token>"}
+{"type": "cli", "command": "/trust --address \"trac1abc...\""}
+{"type": "cli", "command": "/rate --address \"trac1abc...\" --score 5 --comment \"reliable\""}
+```
+
+Contract output is prefixed with `TRUST_RESULT:` for reliable parsing.
+
+## Known Limitations
+
+- **Sybil:** Free identity creation means ratings can be gamed. Acceptable for demo; v2 could add stake-based reputation.
+- **Public data:** All ratings are permanent and publicly readable.
+- **Eventual consistency:** Autobase linearizes concurrent writes; brief inconsistencies possible during partitions.
+
+## Built On
+
+- [Trac-Systems/intercom](https://github.com/Trac-Systems/intercom) \u2014 upstream Intercom stack
+- [trac-peer](https://github.com/Trac-Systems/trac-peer) \u2014 P2P runtime
+- [Autobase/Hyperbee](https://docs.holepunch.to/) \u2014 replicated state
+
+## License
+
+See [LICENSE.md](LICENSE.md)

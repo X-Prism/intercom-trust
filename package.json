@@ -1,10 +1,10 @@
 {
-  "name": "contract-test-latest",
-  "version": "0.0.1",
+  "name": "intercom-trust",
+  "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "pear": {
-    "name": "contract-test-latest",
+    "name": "intercom-trust",
     "type": "terminal"
   },
   "dependencies": {
